@@ -45,8 +45,8 @@ public:
         UnloadTexture(texture);
     }
 
-    void Fly() {
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
+    void Fly(bool isFlying) {
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             velocity -= acceleration * GetFrameTime();  // Increase upward velocity
         } else {
             velocity += deceleration * GetFrameTime();  // Increase downward velocity
@@ -69,6 +69,39 @@ public:
     }
 };
 
+class Command{
+    public:
+    virtual ~Command(){}
+    virtual void execute() = 0;
+};
+
+class FlyCommand : public Command {
+    private:
+    Ship* ship;  // Pointer to the ship instance
+    bool isFlying;
+
+    public:
+    FlyCommand(Ship* ship, bool isFlying) : ship(ship), isFlying(isFlying) {}
+
+    void execute() override {
+        ship->Fly(isFlying);
+    }
+};
+
+class InputHandler{
+    private:
+    Command* flyCommand;
+    Command* fallCommand;
+
+    public:
+    InputHandler(Command* flyCmd, Command* fallCmd) : flyCommand(flyCmd), fallCommand(fallCmd){}
+    void handleInput(){
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            flyCommand->execute();
+        } else{fallCommand->execute();}
+    }
+};
+
 int main () {
     int screenWidth = 1280;
     int screenHeight = 720;
@@ -77,29 +110,18 @@ int main () {
 
     Ship ship("src/ship.png", screenWidth, screenHeight);
 
-    //Texture2D ship = LoadTexture("src/ship.png");
-
-    // int shipWidth = ship.width;
-    // int shipHeight = ship.height;
-
-    // Rectangle sourceRec = {0.0f, 0.0f, (float)shipWidth, (float)shipHeight};                // area of texture
-    // Rectangle destRec = {
-    //     150.0f,
-    //     screenHeight / 2.0f,
-    //     shipWidth / 3.0f,
-    //     shipHeight / 3.0f
-    // };    // texture placement on canvas
-    // Vector2 origin = {destRec.width / 2.0f, destRec.height / 2.0f};                                 // idk lol
-
-    // int rotation = 0;
+    FlyCommand flyCommand(&ship, true);
+    FlyCommand fallCommand(&ship, false);
+    InputHandler inputHandler(&flyCommand, &fallCommand);
 
     SetTargetFPS(60);
 
     while (WindowShouldClose() == false){
-        
-        ship.Fly();
 
-        //rotation++;
+        inputHandler.handleInput();
+        
+        //ship.Fly();
+
         BeginDrawing();
             ClearBackground(GRAY);
 
