@@ -1,5 +1,6 @@
 #include <iostream>
 #include <raylib.h>
+#include <vector>
 
 using namespace std;
 
@@ -46,7 +47,7 @@ public:
     }
 
     void Fly(bool isFlying) {
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        if (isFlying) {
             velocity -= acceleration * GetFrameTime();  // Increase upward velocity
         } else {
             velocity += deceleration * GetFrameTime();  // Increase downward velocity
@@ -69,18 +70,75 @@ public:
     }
 };
 
-class Command{
-    public:
-    virtual ~Command(){}
+class Bullet {
+public:
+    Vector2 position, velocity;
+    float radius;
+    bool active;
+
+    Bullet(float x, float y) {
+        position = {x, y};
+        velocity = {500.0f, 0.0f};  // Horizontal bullet movement
+        radius = 5.0f;
+        active = false;
+    }
+
+    Bullet(const Bullet& other) {
+        position = other.position;
+        velocity = other.velocity;
+        radius = other.radius;
+        active = other.active;
+    }
+
+    void Update() {
+        if (active) {
+            position.x += velocity.x * GetFrameTime();
+            if (position.x > GetScreenWidth()) {
+                active = false;
+            }
+        }
+    }
+
+    void Draw() {
+        if (active) {
+            DrawCircleV(position, radius, WHITE);
+        }
+    }
+};
+
+class BulletPrototype {
+public:
+    virtual ~BulletPrototype() {}
+    virtual Bullet* clone(float x, float y) = 0;
+};
+
+class BulletSpawn : public BulletPrototype {
+private:
+    Bullet* prototypeBullet;
+
+public:
+    BulletSpawn(Bullet* bullet) : prototypeBullet(bullet) {}
+
+    Bullet* clone(float x, float y) override {
+        Bullet* bullet = new Bullet(*prototypeBullet);
+        bullet->position = {x, y};
+        bullet->active = true;
+        return bullet;
+    }
+};
+
+class Command {
+public:
+    virtual ~Command() {}
     virtual void execute() = 0;
 };
 
 class FlyCommand : public Command {
-    private:
+private:
     Ship* ship;  // Pointer to the ship instance
     bool isFlying;
 
-    public:
+public:
     FlyCommand(Ship* ship, bool isFlying) : ship(ship), isFlying(isFlying) {}
 
     void execute() override {
@@ -88,50 +146,87 @@ class FlyCommand : public Command {
     }
 };
 
-class InputHandler{
-    private:
-    Command* flyCommand;
-    Command* fallCommand;
+class ShootCommand : public Command {
+private:
+    Ship* ship;
+    BulletSpawn* bulletPrototype;
+    vector<Bullet*>& bullets;
 
-    public:
-    InputHandler(Command* flyCmd, Command* fallCmd) : flyCommand(flyCmd), fallCommand(fallCmd){}
-    void handleInput(){
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            flyCommand->execute();
-        } else{fallCommand->execute();}
+public:
+    ShootCommand(Ship* ship, BulletSpawn* spawnBullet, vector<Bullet*>& bullets)
+        : ship(ship), bulletPrototype(spawnBullet), bullets(bullets) {}
+
+    void execute() override {
+        Bullet* bullet = bulletPrototype->clone(ship->destRec.x + ship->destRec.width / 2, ship->destRec.y);
+        bullets.push_back(bullet);
     }
 };
 
-int main () {
+class InputHandler {
+private:
+    Command* flyCommand;
+    Command* fallCommand;
+    Command* shootCommand;
+
+public:
+    InputHandler(Command* flyCmd, Command* fallCmd, Command* shootCmd)
+        : flyCommand(flyCmd), fallCommand(fallCmd), shootCommand(shootCmd) {}
+
+    void handleInput() {
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            flyCommand->execute();
+        } else {
+            fallCommand->execute();
+        }
+        if (IsKeyPressed(KEY_E)) {  // Use IsKeyPressed for single bullet per key press
+            shootCommand->execute();
+        }
+    }
+};
+
+int main() {
     int screenWidth = 1280;
     int screenHeight = 720;
 
     InitWindow(screenWidth, screenHeight, "test");
 
     Ship ship("src/ship.png", screenWidth, screenHeight);
+    Bullet bulletPrototype(0, 0);
+    BulletSpawn spawnBullets(&bulletPrototype);
+
+    vector<Bullet*> bullets;
 
     FlyCommand flyCommand(&ship, true);
     FlyCommand fallCommand(&ship, false);
-    InputHandler inputHandler(&flyCommand, &fallCommand);
+    ShootCommand shootCommand(&ship, &spawnBullets, bullets);
+    InputHandler inputHandler(&flyCommand, &fallCommand, &shootCommand);
 
     SetTargetFPS(60);
 
-    while (WindowShouldClose() == false){
-
+    while (!WindowShouldClose()) {
         inputHandler.handleInput();
-        
-        //ship.Fly();
+
+        for (Bullet* bullet : bullets) {
+            bullet->Update();
+        }
 
         BeginDrawing();
-            ClearBackground(GRAY);
+            ClearBackground(BLACK);
 
             ship.Draw();
+
+            for (Bullet* bullet : bullets) {
+                bullet->Draw();
+            }
 
             DrawLine(screenWidth / 2, 0, screenWidth / 2, screenHeight, RED);
             DrawLine(0, screenHeight / 2, screenWidth, screenHeight / 2, RED);
 
         EndDrawing();
+    }
 
+    for (Bullet* bullet : bullets) {
+        delete bullet;
     }
 
     CloseWindow();
