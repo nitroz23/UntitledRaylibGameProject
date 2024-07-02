@@ -3,7 +3,9 @@
 #include <vector>
 
 using namespace std;
-
+//#####################
+//Game objects
+//#####################
 class Ship {
 public:
     Texture2D texture;
@@ -106,6 +108,45 @@ public:
     }
 };
 
+class Asteroid{
+public:
+    Vector2 position, velocity;
+    float radius;
+    bool active;
+
+    Asteroid(float y, float vx, float rad) {
+        position = {GetScreenWidth() + 50.0f, y};
+        velocity = {vx, 0.0f};
+        this->radius = rad;
+        active = false;
+    }
+
+    Asteroid(const Asteroid& other) {
+        position = other.position;
+        velocity = other.velocity;
+        radius = other.radius;
+        active = other.active;
+    }
+
+    void Update() {
+        if (active) {
+            position.x += velocity.x * GetFrameTime();
+            if (position.x < -50) {
+                active = false;
+            }
+        }
+    }
+
+    void Draw() {
+        if (active) {
+            DrawCircleV(position, radius, DARKGRAY);
+        }
+    }
+};
+
+//#####################
+//Prototype
+//#####################
 class BulletPrototype {
 public:
     virtual ~BulletPrototype() {}
@@ -127,6 +168,30 @@ public:
     }
 };
 
+class AsteroidPrototype{
+public:
+    virtual ~AsteroidPrototype(){}
+    virtual Asteroid* clone(float y, float vx, float rad) = 0;
+};
+
+class AsteroidSpawn: public AsteroidPrototype{
+private:
+    Asteroid* prototypeAsteroid;
+public:
+    AsteroidSpawn(Asteroid* asteroid): prototypeAsteroid(asteroid){}
+    Asteroid* clone(float y, float vx, float rad) override{
+        Asteroid* asteroid = new Asteroid(*prototypeAsteroid);
+        asteroid->position = {GetScreenWidth() + 50.0f, y};
+        asteroid->velocity = {vx, 0.0f};
+        asteroid->radius = rad;
+        asteroid->active = true;
+        return asteroid;
+    }
+};
+
+//#####################
+//Command
+//#####################
 class Command {
 public:
     virtual ~Command() {}
@@ -162,6 +227,24 @@ public:
     }
 };
 
+class SpawnAsteroidCommand : public Command {
+private:
+    AsteroidSpawn* asteroidPrototype;
+    vector<Asteroid*>& asteroids;
+
+public:
+    SpawnAsteroidCommand(AsteroidSpawn* spawnAsteroid, vector<Asteroid*>& asteroids)
+        : asteroidPrototype(spawnAsteroid), asteroids(asteroids) {}
+    void execute() override{
+        float y = GetRandomValue(0, GetScreenHeight());
+        float vx = GetRandomValue(-2000, -1000)/10.0f;
+        float rad = GetRandomValue(10, 50);
+
+        Asteroid* asteroid = asteroidPrototype->clone(y, vx, rad);
+        asteroids.push_back(asteroid);
+    }
+};
+
 class InputHandler {
 private:
     Command* flyCommand;
@@ -184,6 +267,9 @@ public:
     }
 };
 
+//#####################
+//Main Game Loop
+//#####################
 int main() {
     int screenWidth = 1280;
     int screenHeight = 720;
@@ -196,15 +282,35 @@ int main() {
 
     vector<Bullet*> bullets;
 
+    Asteroid asteroidPrototype(0, 0, 0);
+    AsteroidSpawn spawnAsteroids(&asteroidPrototype);
+    
+    vector<Asteroid*> asteroids;
+
     FlyCommand flyCommand(&ship, true);
     FlyCommand fallCommand(&ship, false);
     ShootCommand shootCommand(&ship, &spawnBullets, bullets);
+    SpawnAsteroidCommand spawnAsteroidCommand(&spawnAsteroids, asteroids);
+
     InputHandler inputHandler(&flyCommand, &fallCommand, &shootCommand);
+
+    float asteroidSpawnTimer = 0.0f;
+    float asteroidSpawnInterval = 2.0f;
 
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
         inputHandler.handleInput();
+
+        asteroidSpawnTimer += GetFrameTime();
+        if (asteroidSpawnTimer >= asteroidSpawnInterval) {
+            spawnAsteroidCommand.execute();
+            asteroidSpawnTimer = 0.0f;
+        }
+
+        for (Asteroid* asteroid : asteroids) {
+            asteroid->Update();
+        }
 
         for (Bullet* bullet : bullets) {
             bullet->Update();
@@ -219,6 +325,10 @@ int main() {
                 bullet->Draw();
             }
 
+            for (Asteroid* asteroid : asteroids) {
+                asteroid->Draw();
+            }
+
             DrawLine(screenWidth / 2, 0, screenWidth / 2, screenHeight, RED);
             DrawLine(0, screenHeight / 2, screenWidth, screenHeight / 2, RED);
 
@@ -227,6 +337,10 @@ int main() {
 
     for (Bullet* bullet : bullets) {
         delete bullet;
+    }
+
+    for (Asteroid* asteroid : asteroids) {
+        delete asteroid;
     }
 
     CloseWindow();
