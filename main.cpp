@@ -37,7 +37,7 @@ public:
             shipWidth / 3.0f,
             shipHeight / 3.0f
         };
-        origin = {destRec.width / 2.0f, destRec.height / 2.0f};
+        origin = {0.0f, 0.0f};
         rotation = 0.0f;
         velocity = 0.0f;
         acceleration = 1500.0f;  // Adjust for desired upward acceleration
@@ -69,6 +69,7 @@ public:
 
     void Draw() {
         DrawTexturePro(texture, sourceRec, destRec, origin, rotation, WHITE);
+        DrawRectangleLines(destRec.x, destRec.y, destRec.width, destRec.height, RED);
     }
 };
 
@@ -222,7 +223,10 @@ public:
         : ship(ship), bulletPrototype(spawnBullet), bullets(bullets) {}
 
     void execute() override {
-        Bullet* bullet = bulletPrototype->clone(ship->destRec.x + ship->destRec.width / 2, ship->destRec.y);
+        // Center of the ship
+        float bulletX = ship->destRec.x + ship->destRec.width;
+        float bulletY = ship->destRec.y + ship->destRec.height / 2;
+        Bullet* bullet = bulletPrototype->clone(bulletX, bulletY);
         bullets.push_back(bullet);
     }
 };
@@ -295,7 +299,7 @@ int main() {
     InputHandler inputHandler(&flyCommand, &fallCommand, &shootCommand);
 
     float asteroidSpawnTimer = 0.0f;
-    float asteroidSpawnInterval = 2.0f;
+    float asteroidSpawnInterval = 0.5f;
 
     SetTargetFPS(60);
 
@@ -316,6 +320,30 @@ int main() {
             bullet->Update();
         }
 
+        // Collision detection for bullets and asteroids
+        for (Asteroid* asteroid : asteroids) {
+            if (!asteroid->active) continue;
+            for (Bullet* bullet : bullets) {
+                if (!bullet->active) continue;
+                if (CheckCollisionCircles(asteroid->position, asteroid->radius, bullet->position, bullet->radius)) {
+                    asteroid->active = false;
+                    bullet->active = false;
+                }
+            }
+        }
+
+        // Collision detection for ship and asteroids
+        for (Asteroid* asteroid : asteroids) {
+            if (!asteroid->active) continue;
+            if (CheckCollisionCircleRec(asteroid->position, asteroid->radius, ship.destRec)) {
+                // Handle ship and asteroid collision
+                // This can be game over or reducing health, etc.
+                cout << "Collision with ship!" << endl;
+                // For demonstration, deactivating the asteroid
+                asteroid->active = false;
+            }
+        }
+
         BeginDrawing();
             ClearBackground(BLACK);
 
@@ -329,8 +357,8 @@ int main() {
                 asteroid->Draw();
             }
 
-            DrawLine(screenWidth / 2, 0, screenWidth / 2, screenHeight, RED);
-            DrawLine(0, screenHeight / 2, screenWidth, screenHeight / 2, RED);
+            // DrawLine(screenWidth / 2, 0, screenWidth / 2, screenHeight, RED);
+            // DrawLine(0, screenHeight / 2, screenWidth, screenHeight / 2, RED);
 
         EndDrawing();
     }
