@@ -3,6 +3,9 @@
 #include <vector>
 
 using namespace std;
+
+typedef enum gameScreen { GAMEPLAY = 0, GAMEOVER } gameScreen;
+
 //#####################
 //Game objects
 //#####################
@@ -13,15 +16,16 @@ public:
     Rectangle destRec;
     Vector2 origin;
     float rotation;
-    float velocity;  // Velocity of the ship
-    float acceleration;  // Acceleration rate
-    float deceleration;  // Deceleration rate (gravity)
+    float velocity;  
+    float acceleration;  
+    float deceleration;  
+    Vector2 initialPosition;
 
     Ship(const char* texturePath, int screenWidth, int screenHeight) {
         Image image = LoadImage(texturePath);
         if (image.data == nullptr) {
             cerr << "Failed to load image!" << endl;
-            exit(-1);  // Exit if the image fails to load
+            exit(-1);
         }
 
         texture = LoadTextureFromImage(image);
@@ -40,8 +44,9 @@ public:
         origin = {0.0f, 0.0f};
         rotation = 0.0f;
         velocity = 0.0f;
-        acceleration = 1500.0f;  // Adjust for desired upward acceleration
-        deceleration = 1500.0f;  // Adjust for desired downward acceleration
+        acceleration = 1500.0f;  
+        deceleration = 1500.0f;
+        initialPosition = {screenWidth - 1080.0f, screenHeight / 2.0f};
     }
 
     ~Ship() {
@@ -50,14 +55,13 @@ public:
 
     void Fly(bool isFlying) {
         if (isFlying) {
-            velocity -= acceleration * GetFrameTime();  // Increase upward velocity
+            velocity -= acceleration * GetFrameTime();  
         } else {
-            velocity += deceleration * GetFrameTime();  // Increase downward velocity
+            velocity += deceleration * GetFrameTime(); 
         }
 
-        destRec.y += velocity * GetFrameTime();  // Update position based on velocity
+        destRec.y += velocity * GetFrameTime();  
 
-        // Prevent the ship from moving off-screen
         if (destRec.y < 0) {
             destRec.y = 0;
             velocity = 0;
@@ -71,6 +75,12 @@ public:
         DrawTexturePro(texture, sourceRec, destRec, origin, rotation, WHITE);
         DrawRectangleLines(destRec.x, destRec.y, destRec.width, destRec.height, RED);
     }
+
+    void Reset() {
+        destRec.x = initialPosition.x;
+        destRec.y = initialPosition.y;
+        velocity = 0.0f;
+    }
 };
 
 class Bullet {
@@ -81,7 +91,7 @@ public:
 
     Bullet(float x, float y) {
         position = {x, y};
-        velocity = {500.0f, 0.0f};  // Horizontal bullet movement
+        velocity = {500.0f, 0.0f};  
         radius = 5.0f;
         active = false;
     }
@@ -109,7 +119,7 @@ public:
     }
 };
 
-class Asteroid{
+class Asteroid {
 public:
     Vector2 position, velocity;
     float radius;
@@ -169,18 +179,18 @@ public:
     }
 };
 
-class AsteroidPrototype{
+class AsteroidPrototype {
 public:
-    virtual ~AsteroidPrototype(){}
+    virtual ~AsteroidPrototype() {}
     virtual Asteroid* clone(float y, float vx, float rad) = 0;
 };
 
-class AsteroidSpawn: public AsteroidPrototype{
+class AsteroidSpawn : public AsteroidPrototype {
 private:
     Asteroid* prototypeAsteroid;
 public:
-    AsteroidSpawn(Asteroid* asteroid): prototypeAsteroid(asteroid){}
-    Asteroid* clone(float y, float vx, float rad) override{
+    AsteroidSpawn(Asteroid* asteroid) : prototypeAsteroid(asteroid) {}
+    Asteroid* clone(float y, float vx, float rad) override {
         Asteroid* asteroid = new Asteroid(*prototypeAsteroid);
         asteroid->position = {GetScreenWidth() + 50.0f, y};
         asteroid->velocity = {vx, 0.0f};
@@ -201,7 +211,7 @@ public:
 
 class FlyCommand : public Command {
 private:
-    Ship* ship;  // Pointer to the ship instance
+    Ship* ship;  
     bool isFlying;
 
 public:
@@ -223,7 +233,6 @@ public:
         : ship(ship), bulletPrototype(spawnBullet), bullets(bullets) {}
 
     void execute() override {
-        // Center of the ship
         float bulletX = ship->destRec.x + ship->destRec.width;
         float bulletY = ship->destRec.y + ship->destRec.height / 2;
         Bullet* bullet = bulletPrototype->clone(bulletX, bulletY);
@@ -239,9 +248,9 @@ private:
 public:
     SpawnAsteroidCommand(AsteroidSpawn* spawnAsteroid, vector<Asteroid*>& asteroids)
         : asteroidPrototype(spawnAsteroid), asteroids(asteroids) {}
-    void execute() override{
+    void execute() override {
         float y = GetRandomValue(0, GetScreenHeight());
-        float vx = GetRandomValue(-2000, -1000)/10.0f;
+        float vx = GetRandomValue(-2000, -1000) / 10.0f;
         float rad = GetRandomValue(10, 50);
 
         Asteroid* asteroid = asteroidPrototype->clone(y, vx, rad);
@@ -265,7 +274,7 @@ public:
         } else {
             fallCommand->execute();
         }
-        if (IsKeyPressed(KEY_E)) {  // Use IsKeyPressed for single bullet per key press
+        if (IsKeyPressed(KEY_E)) { 
             shootCommand->execute();
         }
     }
@@ -274,11 +283,27 @@ public:
 //#####################
 //Main Game Loop
 //#####################
+void ResetGame(Ship& ship, vector<Bullet*>& bullets, vector<Asteroid*>& asteroids) {
+    ship.Reset();
+
+    for (Bullet* bullet : bullets) {
+        delete bullet;
+    }
+    bullets.clear();
+
+    for (Asteroid* asteroid : asteroids) {
+        delete asteroid;
+    }
+    asteroids.clear();
+}
+
 int main() {
     int screenWidth = 1280;
     int screenHeight = 720;
 
     InitWindow(screenWidth, screenHeight, "test");
+
+    gameScreen currentScreen = GAMEPLAY;
 
     Ship ship("src/ship.png", screenWidth, screenHeight);
     Bullet bulletPrototype(0, 0);
@@ -288,7 +313,7 @@ int main() {
 
     Asteroid asteroidPrototype(0, 0, 0);
     AsteroidSpawn spawnAsteroids(&asteroidPrototype);
-    
+
     vector<Asteroid*> asteroids;
 
     FlyCommand flyCommand(&ship, true);
@@ -301,65 +326,84 @@ int main() {
     float asteroidSpawnTimer = 0.0f;
     float asteroidSpawnInterval = 0.5f;
 
+    int score = 0;
+
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
-        inputHandler.handleInput();
+        switch (currentScreen) {
+            case GAMEPLAY: {
+                inputHandler.handleInput();
 
-        asteroidSpawnTimer += GetFrameTime();
-        if (asteroidSpawnTimer >= asteroidSpawnInterval) {
-            spawnAsteroidCommand.execute();
-            asteroidSpawnTimer = 0.0f;
-        }
-
-        for (Asteroid* asteroid : asteroids) {
-            asteroid->Update();
-        }
-
-        for (Bullet* bullet : bullets) {
-            bullet->Update();
-        }
-
-        // Collision detection for bullets and asteroids
-        for (Asteroid* asteroid : asteroids) {
-            if (!asteroid->active) continue;
-            for (Bullet* bullet : bullets) {
-                if (!bullet->active) continue;
-                if (CheckCollisionCircles(asteroid->position, asteroid->radius, bullet->position, bullet->radius)) {
-                    asteroid->active = false;
-                    bullet->active = false;
+                asteroidSpawnTimer += GetFrameTime();
+                if (asteroidSpawnTimer >= asteroidSpawnInterval) {
+                    spawnAsteroidCommand.execute();
+                    asteroidSpawnTimer = 0.0f;
                 }
-            }
-        }
 
-        // Collision detection for ship and asteroids
-        for (Asteroid* asteroid : asteroids) {
-            if (!asteroid->active) continue;
-            if (CheckCollisionCircleRec(asteroid->position, asteroid->radius, ship.destRec)) {
-                // Handle ship and asteroid collision
-                // This can be game over or reducing health, etc.
-                cout << "Collision with ship!" << endl;
-                // For demonstration, deactivating the asteroid
-                asteroid->active = false;
-            }
+                for (Asteroid* asteroid : asteroids) {
+                    asteroid->Update();
+                }
+
+                for (Bullet* bullet : bullets) {
+                    bullet->Update();
+                }
+
+                for (Asteroid* asteroid : asteroids) {
+                    if (!asteroid->active) continue;
+                    for (Bullet* bullet : bullets) {
+                        if (!bullet->active) continue;
+                        if (CheckCollisionCircles(asteroid->position, asteroid->radius, bullet->position, bullet->radius)) {
+                            asteroid->active = false;
+                            bullet->active = false;
+                            score += 1;
+                        }
+                    }
+                }
+                for (Asteroid* asteroid : asteroids) {
+                    if (!asteroid->active) continue;
+                    if (CheckCollisionCircleRec(asteroid->position, asteroid->radius, ship.destRec)) {
+                        cout << "Collision with ship!" << endl;
+                        asteroid->active = false;
+                        currentScreen = GAMEOVER;
+                    }
+                }
+            } break;
+            case GAMEOVER: {
+                if (IsKeyPressed(KEY_R)) {
+                    ResetGame(ship, bullets, asteroids);
+                    score = 0;
+                    currentScreen = GAMEPLAY;
+                }
+            } break;
+            default:
+                break;
         }
 
         BeginDrawing();
-            ClearBackground(BLACK);
+        ClearBackground(BLACK);
 
-            ship.Draw();
+        switch (currentScreen) {
+            case GAMEPLAY: {
+                DrawText(TextFormat("SCORE: %d", score), 10, 10, 20, WHITE);
+                ship.Draw();
 
-            for (Bullet* bullet : bullets) {
-                bullet->Draw();
+                for (Bullet* bullet : bullets) {
+                    bullet->Draw();
+                }
+
+                for (Asteroid* asteroid : asteroids) {
+                    asteroid->Draw();
+                }
+
+            } break;
+            case GAMEOVER: {
+                DrawText("GAME OVER", screenWidth / 2 - MeasureText("GAME OVER", 50) / 2, screenHeight / 2 - 20, 50, PINK);
+                DrawText(TextFormat("SCORE: %d", score), screenWidth / 2 - MeasureText(TextFormat("SCORE: %d", score), 25) / 2, screenHeight / 2 + 30, 25, PINK);
+                DrawText("PRESS 'R' TO RETRY || PRESS 'ESC' TO QUIT", screenWidth / 2 - MeasureText("PRESS 'R' TO RETRY || PRESS 'ESC' TO QUIT", 20) / 2, screenHeight / 2 + 75, 20, PINK);
+                DrawLine(screenWidth / 2, 0, screenWidth / 2, screenHeight, RED);
             }
-
-            for (Asteroid* asteroid : asteroids) {
-                asteroid->Draw();
-            }
-
-            // DrawLine(screenWidth / 2, 0, screenWidth / 2, screenHeight, RED);
-            // DrawLine(0, screenHeight / 2, screenWidth, screenHeight / 2, RED);
-
+        }
         EndDrawing();
     }
 
