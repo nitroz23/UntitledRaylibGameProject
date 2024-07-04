@@ -301,7 +301,7 @@ int main() {
     int screenWidth = 1280;
     int screenHeight = 720;
 
-    InitWindow(screenWidth, screenHeight, "test");
+    InitWindow(screenWidth, screenHeight, "KAPAL KARAM");
 
     gameScreen currentScreen = GAMEPLAY;
 
@@ -360,7 +360,7 @@ int main() {
                         }
                     }
                 }
-                
+
                 for (Asteroid* asteroid : asteroids) {
                     if (!asteroid->active) continue;
                     if (CheckCollisionCircleRec(asteroid->position, asteroid->radius, ship.destRec)) {
