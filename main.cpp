@@ -73,7 +73,6 @@ public:
 
     void Draw() {
         DrawTexturePro(texture, sourceRec, destRec, origin, rotation, WHITE);
-        DrawRectangleLines(destRec.x, destRec.y, destRec.width, destRec.height, RED);
     }
 
     void Reset() {
@@ -188,6 +187,7 @@ public:
 class AsteroidSpawn : public AsteroidPrototype {
 private:
     Asteroid* prototypeAsteroid;
+
 public:
     AsteroidSpawn(Asteroid* asteroid) : prototypeAsteroid(asteroid) {}
     Asteroid* clone(float y, float vx, float rad) override {
@@ -360,10 +360,10 @@ int main() {
                         }
                     }
                 }
+                
                 for (Asteroid* asteroid : asteroids) {
                     if (!asteroid->active) continue;
                     if (CheckCollisionCircleRec(asteroid->position, asteroid->radius, ship.destRec)) {
-                        cout << "Collision with ship!" << endl;
                         asteroid->active = false;
                         currentScreen = GAMEOVER;
                     }
@@ -401,9 +401,9 @@ int main() {
                 DrawText("GAME OVER", screenWidth / 2 - MeasureText("GAME OVER", 50) / 2, screenHeight / 2 - 20, 50, PINK);
                 DrawText(TextFormat("SCORE: %d", score), screenWidth / 2 - MeasureText(TextFormat("SCORE: %d", score), 25) / 2, screenHeight / 2 + 30, 25, PINK);
                 DrawText("PRESS 'R' TO RETRY || PRESS 'ESC' TO QUIT", screenWidth / 2 - MeasureText("PRESS 'R' TO RETRY || PRESS 'ESC' TO QUIT", 20) / 2, screenHeight / 2 + 75, 20, PINK);
-                DrawLine(screenWidth / 2, 0, screenWidth / 2, screenHeight, RED);
             }
         }
+
         EndDrawing();
     }
 
